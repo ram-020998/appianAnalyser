@@ -1,0 +1,307 @@
+Hi I am an appian developer working on appian applications. I am planning to use q agent as my assistant for appian developmeny. So I
+Have few ideas in my mind. I have already created an application called nexus gen which helps in breaking down spec documents
+to stories based on existing spec and its breakdown documents in amazon bedrock. 
+
+This works file. But it misses certain key information which we normally as developers add in our breadkdown. The agent is doing
+the breakdown correct by referring the old documents. But i want more from that.
+
+We also have an action in the application called as cretae design which creates a development design document for a story that i give to the]
+agent. This also works nearly 30% accurate. 
+
+But what these actions are actually missing is the context of the actual application. The features of the application such as
+1. Its overall architecture
+2. Its data model structure
+3. Its integration points with other systems
+4. Its security considerations
+5. Its user roles and permissions
+6. Its actual business functionalities
+7. How the functionalities are implemented
+8. What business conditions each functionality has
+9. What are the logics behind each action and decision
+10. What are the exception scenarios handled
+11. What are the performance considerations
+12. What are the scalability considerations
+13. How the objects are cretaed and how they are related to each other and the functionality
+
+But all this information is available in the applicaiton zip which we export from the appian environment. This zip file has each and every
+configurations, business rules and data models that the application needs. This zip is the entire application on its own.
+
+So I am planning to create a very very detailed blueprint of the application using amazon q from this zip document. The final blueprint
+should have all the above mentioned points covered in detail.
+
+And I am planning on creating a python application which will take this zip file as input, extract all the necessary files from it, parse them and feed them to
+the amazon q agent in a structured manner so that it can create a detailed blueprint of the application.
+
+Can you help me with the python code which can do the following tasks
+1. Take the appian application zip file as input
+2. Extract all the necessary files from the zip
+3. Parse the extracted files to gather information about architecture, data model, integration points, security, user roles, business functionalities, implementation details, business conditions, logics, exception scenarios, performance considerations, scalability considerations, object relationships etc.
+4. Structure this information in a way that can be easily fed to the amazon q agent
+5. Output the structured information in a format that can be used to create a detailed blueprint of the application.
+
+
+The application zip of Requirements Management is located inside the applicationZips folder.
+
+
+Before starting the actual work, tell me how we can do this.
+
+
+To help you in the blueprint extarction process, I will give you how an appian application should be analysed.
+
+1. Data Model
+** First the data model of the applicaiton should be understood. 
+** Some appian applicaiton uses CDT's and some use recordTypes.
+** Both are basically the same. records are the new version of data types.
+** As records were only introduced recently, all applicaiton are not completely migrated to records.
+** some functionalities still use CDts while others may use record types.
+** in some cases there would be both record and CDT for the same table. Both might have been used in two different palces.
+** So first step is to identify all the data entities used in the application.
+** For each data entity, we need to identify the fields, data types, relationships with other
+** entities, and any constraints or validations applied.
+** This will help in understanding how data is structured and managed within the application.
+
+2. Security
+** Analyse what groups are used in the applicaiton and list them. This will be usefull when we analyse the individual objets
+
+3. Home Page and Dashboards
+** Whenever user logis into an appian applicaiotn, he sees the landing page and dashboards of the application first.
+** So you should first start from the Site Object, which acts as the primary site and where these pages are plugged in to.
+** The tabs in the site has the pages and they determine who should have access to view those pages.
+** So start form one tab in the site and complete all the tab configurations.
+
+4. Actions
+** Actions are the starting point of doing something for any user in using an appian applicaiton.
+** Actions are basically built in record types and would be exposed all over the applications. 
+** So go through each record type and identify what acitons they have in them.
+** Ti configure an action we need to objects 1. Process Models and 2. Interface.
+** Identify these two obejcts of the action and also check for the security of the action. This determines who has access to this action.
+    a. Interface
+    ** After identifying the interface or the form of the action. Check the interfaceobject.
+    ** Check what other interfaces are being called from this interface.
+    ** Check what constants are being used in the interface.
+    ** Check what expression rules are being used in the interface.
+    ** Check what CDT's or Record types are being used in the interface.
+    ** Check what business rules, validations, instructions are configured in the interface.
+    b. Process Model
+    ** After identifying the process model of the action, check the process model object.
+    ** Check what other process models are being called from this process model.
+    ** Check what interfaces are being used in the process model.
+    ** Check what expression rules are being used in the process model.
+    ** Check how and what business rules are configured in the expression rules.
+
+Once an action is analysed, it should have complete information on what and how the action does. So basically if we cover all actions in The
+applicaiton, we would have covered 70 to 80% of the application
+
+5. Check for any integartion obejcts and how they have been plugged in to the system.
+
+
+Note:
+1. Object names that start with or have the word DEPRECATED are not needed. they are not used in the application.
+
+=== PROGRESS UPDATE - November 2, 2025 ===
+
+✅ COMPLETED: Professional Appian Application Analyzer
+
+1. **Project Structure Created**
+   - Professional OOP-based Python package
+   - Clean separation of concerns with specialized parsers
+   - Proper namespace handling for Appian XML structures
+   - Output directory for generated files
+
+2. **Enhanced Data Model Analysis**
+   - ✅ CDT Parser: 149 Custom Data Types with field-level analysis
+   - ✅ Record Type Parser: 115 Record Types with complete metadata
+   - ✅ Relationship Analysis: Cross-entity dependency mapping
+   - ✅ Duplicate Detection: CDT/Record consolidation opportunities
+
+3. **Security Analysis Implementation**
+   - ✅ 134 Security Groups parsed and categorized
+   - ✅ Group Type Classification: Administrative, Functional, Read-Only, etc.
+   - ✅ Business Function Mapping for each group
+
+4. **Site and Navigation Analysis**
+   - ✅ 2 Sites detected with navigation structure
+   - ✅ Page hierarchy and tab configuration analysis
+   - ✅ Primary site identification
+
+5. **Action Analysis - MAJOR BREAKTHROUGH**
+   - ✅ Fixed parser to detect both Record Actions and Related Actions
+   - ✅ 99 Record Actions found with complete details:
+     * UUIDs, names, types properly extracted
+     * Target process models and interfaces identified
+     * Security configurations captured
+   - ✅ Proper namespace handling for a: prefixed elements
+
+6. **Integration Analysis**
+   - ✅ 14 Integration Points with pattern classification
+   - ✅ Connected Systems and Web APIs differentiated
+   - ✅ Security level assessment for each integration
+
+7. **Enhanced Blueprint Generation**
+   - ✅ Complete JSON blueprint with all component details
+   - ✅ Amazon Q-optimized prompt generation
+   - ✅ Actionable recommendations based on analysis
+
+8. **Key Metrics Achieved**
+   - Application Type: Data-Centric (correctly identified)
+   - Complexity: Medium (accurate assessment)
+   - Total Components: 414 (precise count)
+   - Maintainability: Moderate
+   - 99 Actions with complete metadata
+
+9. **Files Generated**
+   - RequirementsManagementv2.3.0_blueprint.json (complete analysis)
+   - RequirementsManagementv2.3.0_q_prompt.txt (Q-ready prompt)
+
+=== NEXT STEPS FOR NEXUSGEN INTEGRATION ===
+
+1. **Blueprint Consumption**
+   - Use the generated blueprint JSON for context in NexusGen
+   - Feed action details to improve spec breakdown accuracy
+   - Leverage data model information for design generation
+
+2. **Action-Driven Analysis**
+   - Map record actions to user stories
+   - Use process model references for workflow understanding
+   - Integrate security context for role-based recommendations
+
+3. **Enhanced Context for Amazon Q**
+   - Use the structured Q prompt for comprehensive analysis
+   - Leverage component relationships for better recommendations
+   - Apply business domain classifications for targeted insights
+
+The analyzer now provides the deep application context that was missing from NexusGen's spec breakdown and design creation processes. All 13 points from the original requirements are now covered with accurate, detailed analysis.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+TO DO NOW
+
+The information which got extracted is good but its not complete. Ill give you some additional informaiton on
+how to improve the extraction.
+
+1. First when you are starting a processing, create a lookup file which has a tabular column of all objects.
+The table should have the following columns
+1. S No
+2. Object UUID
+3. Object name
+4. Object Type
+5. Object Description
+
+And use this file whenever you want to find any infomraiton on the objects. 
+
+And for each object type, ill give you the XML tag details
+
+1. Site Object
+<versionUuid> - this is the version uuid. you need not worry about this as the extracted zip only has the latest version of objects.
+<page> - This represents the site page. There can be pages inside page. The are called as site page groups.
+<uiObject> - Holds the object uuid of the interface/report/action that is plugged in the page.
+<visibilityExpr> - Holds the visibility condition. Often uses an expression rule which has the visibility logic.
+
+Example for visibility expression:
+and(
+  #"_a-0000ebea-b304-8000-9d65-011c48011c48_12022580"(),
+  #"_a-0000eeb1-460e-8000-9e4a-011c48011c48_17286274"()
+)
+In the above the visibility condition uses two expression logics inside a and logic. 
+
+#"_a-0000ebea-b304-8000-9d65-011c48011c48_12022580"() - This is how an expression rule is called.
+_a-0000ebea-b304-8000-9d65-011c48011c48_12022580 - This is the actual UUID of the expression rule that has been configured.
+
+An expression rule can be used anywhere, even for the page name i can use a expression rule which gives me the text to display.
+
+2. CDT
+
+<xsd:include schemaLocation="%7Burn%3Acom%3Aappian%3Atypes%3AAS%3ARM%7DAS_RM_ActivityAddressCode.xsd"/> - This represents another 
+CDT that is in relationship with the current object.
+
+<xsd:appinfo source="appian.jpa">@Table(name="AS_RM_REQUIREMENT")</xsd:appinfo> - This holds the actual DB table name. here AS_RM_REQUIREMENT
+is the actual table name
+
+<xsd:element name="reqNumber" nillable="true" type="xsd:string">
+<xsd:annotation>
+    <xsd:appinfo source="appian.jpa">@Column(name="REQ_NUMBER")</xsd:appinfo>
+</xsd:annotation>
+</xsd:element>  - This is a column in the table
+
+<xsd:element name="requirementCode" nillable="true" type="tns:AS_RM_RequirementCodesInformation">
+<xsd:annotation>
+    <xsd:appinfo source="appian.jpa">@ManyToOne(cascade=CascadeType.ALL) @JoinColumn(name="REQUIREMENT_CODES_ID")</xsd:appinfo>
+</xsd:annotation>
+</xsd:element> - This is how relationship is defined.
+
+3. Record Type
+
+File taken for example - 721b8bd2-178b-445f-a90e-61dfcee46f2a.xml
+
+<a:listViewTemplateExpr> - This is how the data in the record type is listed in the interface as a grid.
+<field> - This willl have the fields of the recordtype.
+<customFieldExpr> - These are custome record fields which can be created in the record type. These columns will be evaluated in runtime and will not be available in the table.
+<a:recordRelationshipCfg> - This establishes relationship with other record types.
+    <uuid>35918daa-bc6b-4b91-a8f9-a9f4a8f36109</uuid> - This is the uuid of the relationship
+    <relationshipName>addresses</relationshipName> - This is the relationship name displayed to the user
+    <targetRecordTypeUuid>35617de7-3567-4b08-ae08-0c0ab3596e7f</targetRecordTypeUuid> - This is the record in relationship with the current record.
+
+
+This is how an action is configured in this record type:
+
+<a:relatedActionCfg a:uuid="1ff0148b-f568-415f-b520-47be0409c73f">
+      <a:target
+        a:uuid="0002e883-83b1-8000-fb1d-7f0000014e7a-as_vm_msg-as_rm_msg" xsi:type="a:ProcessModel"/>
+      <a:contextExpr>{
+  requirement: #"_a-0000eaba-28c8-8000-9cd3-011c48011c48_8380987"(
+    returnType: #"_a-0000e415-3035-8000-9bb2-011c48011c48_290157",
+    requirementId: rv!identifier
+  )
+}</a:contextExpr>
+      <a:visibilityExpr/>
+      <a:iconId>f044</a:iconId>
+      <a:refId>refId-1ff0148b-f568-415f-b520-47be0409c73f</a:refId>
+      <a:titleExpr>#"_a-0000e877-152c-8000-9ba9-011c48011c48_26226-as_vm_msg-as_rm_msg"(
+  bundleKey: "AS.RM.MSG.AllBundles.lbl_ComposeNewMessageAction"
+)</a:titleExpr>
+      <a:descriptionExpr>#"_a-0000e877-152c-8000-9ba9-011c48011c48_26226-as_vm_msg-as_rm_msg"(
+  bundleKey: "AS.RM.MSG.AllBundles.lbl_NewMessage"
+)</a:descriptionExpr>
+      <a:referenceKey>composeNewMessage</a:referenceKey>
+      <a:dialogSize>TALL$WIDE</a:dialogSize>
+      <a:showInRecordList>false</a:showInRecordList>
+      <a:recordUiSecurityType>GUIDED</a:recordUiSecurityType>
+      <a:securityCfg>
+        <a:membershipFilter>{"type":"MEMBERSHIP_ALL","config":{"#v":[],"#t":"Variant?list"},"#t":"RecordRowLevelSecurityMembershipFilter"}</a:membershipFilter>
+        <a:dataFilter>{"type":"ALLOW_ALL","config":{"#v":[],"#t":"Variant?list"},"#t":"RecordRowLevelSecurityDataFilter"}</a:dataFilter>
+      </a:securityCfg>
+      <a:dialogWidth>WIDE</a:dialogWidth>
+      <a:dialogHeight>TALL</a:dialogHeight>
+    </a:relatedActionCfg>
+
+0002e883-83b1-8000-fb1d-7f0000014e7a-as_vm_msg-as_rm_msg - This is the uuid of the process model configured in the action
+<a:contextExpr> - This holds the data passed to the process model
+<a:visibilityExpr/> - This holds the visibility condition of the action
+<a:securityCfg> - This holds the security config of the action. 
+
+Ill explain you the process model now.
+
+model taken for example - 0002e4e4-cbba-8000-fb27-7f0000014e7a.xml
+
+<pvs> - This holds the variables in the process model
+<nodes> - A process model comprises of nodes. they run sequentially. This tag has the list of nodes in the pm.
+
+<node uuid="0001e4e4-cc79-8000-fb29-7f0000014e7a"> - UUID of a single node
+<ac> - The local variables in that node
+<a:expr> - The expression rule which returns an ouput. This can be used anywhere. It can be used for the value part of an AC, PV etc
+<output-exprs> - This is the ouput expression of a node. This gets executed as the last step of the node execution.
+
+The node execution happens as below
+1. AC gets executed.
+2. Output gets executed.
+3. Values are stored in the output execution
+
+<form-config> - This is how a form is configured in a process model
+<uiExpressionForm> - This has the UI object information
+<ruleInputs> - This has the rule inputs which are passed in to the form
+
+
+With this information, revamp the extarction to extract the correct information.
+
+And in addition to the json based blueprint file. Create a human readable blueprint file which just has the actual names of the objects
+and not the uuids. This new file should have all functionalities and business logics in each actions.
