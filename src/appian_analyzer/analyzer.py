@@ -159,6 +159,7 @@ class AppianAnalyzer:
             summary={}
         )
         
+        # First pass: Parse all objects to build lookup
         for file_path in self.zip_file.namelist():
             if file_path.endswith('.xml') and not file_path.startswith('META-INF/'):
                 try:
@@ -176,6 +177,30 @@ class AppianAnalyzer:
                 
                 except Exception as e:
                     print(f"⚠️  Error processing {file_path}: {e}")
+                    continue
+        
+        # Second pass: Re-parse process models with object lookup for proper interface/rule classification
+        for file_path in self.zip_file.namelist():
+            if file_path.startswith('processModel/') and file_path.endswith('.xml'):
+                try:
+                    content = self.zip_file.read(file_path).decode('utf-8')
+                    root = ET.fromstring(content)
+                    
+                    # Find process model parser and pass object lookup
+                    for parser in self.parsers:
+                        if parser.__class__.__name__ == 'ProcessModelParser':
+                            parser.object_lookup = self.object_lookup.get_all()
+                            obj = parser.parse(root, file_path)
+                            if obj:
+                                # Replace the existing process model in blueprint
+                                for i, existing_pm in enumerate(blueprint.process_models):
+                                    if existing_pm.uuid == obj.uuid:
+                                        blueprint.process_models[i] = obj
+                                        break
+                            break
+                
+                except Exception as e:
+                    print(f"⚠️  Error re-processing {file_path}: {e}")
                     continue
         
         print(f"📊 Parsed {self.object_lookup.count()} objects")
@@ -225,6 +250,14 @@ class AppianAnalyzer:
                 if "interface" in node["details"]:
                     interface_uuid = node["details"]["interface"]["uuid"]
                     node["details"]["interface"]["name"] = self.object_lookup.resolve_name(interface_uuid)
+            
+            # Resolve process model interfaces
+            for interface in process.interfaces:
+                interface["name"] = self.object_lookup.resolve_name(interface["uuid"])
+            
+            # Resolve process model rules
+            for rule in process.rules:
+                rule["name"] = self.object_lookup.resolve_name(rule["uuid"])
     
     def _create_metadata(self) -> Dict[str, Any]:
         """Create analysis metadata"""

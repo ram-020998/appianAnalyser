@@ -52,6 +52,8 @@ class ProcessModel(AppianObject):
     variables: List[Dict[str, Any]] = None
     nodes: List[Dict[str, Any]] = None
     flows: List[Dict[str, Any]] = None
+    interfaces: List[Dict[str, Any]] = None
+    rules: List[Dict[str, Any]] = None
     security: Dict[str, Any] = None
     
     def __post_init__(self):
@@ -61,6 +63,10 @@ class ProcessModel(AppianObject):
             self.nodes = []
         if self.flows is None:
             self.flows = []
+        if self.interfaces is None:
+            self.interfaces = []
+        if self.rules is None:
+            self.rules = []
         if self.security is None:
             self.security = {"roles": []}
 

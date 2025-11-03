@@ -256,6 +256,8 @@ class ProcessModelParser(XMLParser):
         process.variables = self._parse_variables(pm_elem)
         process.nodes = self._parse_nodes(pm_elem)
         process.flows = self._parse_flows(pm_elem)
+        process.interfaces = self._parse_interfaces(pm_elem)
+        process.rules = self._parse_rules(pm_elem)
         process.security = self._parse_security(root)
         
         return process
@@ -288,17 +290,104 @@ class ProcessModelParser(XMLParser):
         return elem.text.strip() if elem.text else ""
     
     def _parse_variables(self, pm_elem: ET.Element) -> List[Dict[str, Any]]:
-        """Parse process variables"""
+        """Parse process variables with proper names and types"""
         variables = []
-        for pv_elem in pm_elem.findall('.//pvs/pv'):
-            var_data = {
-                "name": self._get_element_text(pv_elem, 'name'),
-                "type": self._get_element_text(pv_elem, 'type'),
-                "parameter": self._get_element_text(pv_elem, 'parameter') == 'true',
-                "multiple": self._get_element_text(pv_elem, 'multiple') == 'true'
-            }
-            variables.append(var_data)
+        
+        pvs_elem = pm_elem.find('{http://www.appian.com/ae/types/2009}pvs')
+        if pvs_elem is not None:
+            for pv in pvs_elem.findall('{http://www.appian.com/ae/types/2009}pv'):
+                # Parse name from string-map
+                name_elem = pv.find('{http://www.appian.com/ae/types/2009}name')
+                name = self._parse_string_map(name_elem) if name_elem is not None else ""
+                
+                # Parse type
+                type_elem = pv.find('{http://www.appian.com/ae/types/2009}type')
+                var_type = type_elem.text if type_elem is not None and type_elem.text else ""
+                
+                # Parse parameter flag
+                param_elem = pv.find('{http://www.appian.com/ae/types/2009}parameter')
+                is_parameter = param_elem.text == 'true' if param_elem is not None else False
+                
+                # Parse required flag
+                req_elem = pv.find('{http://www.appian.com/ae/types/2009}required')
+                is_required = req_elem.text == 'true' if req_elem is not None else False
+                
+                # Parse multiple flag
+                mult_elem = pv.find('{http://www.appian.com/ae/types/2009}multiple')
+                is_multiple = mult_elem.text == 'true' if mult_elem is not None else False
+                
+                if name:  # Only add if name exists
+                    var_data = {
+                        "name": name,
+                        "type": var_type,
+                        "parameter": is_parameter,
+                        "required": is_required,
+                        "multiple": is_multiple
+                    }
+                    variables.append(var_data)
+        
         return variables
+    
+    def _parse_interfaces(self, pm_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse interfaces used in the process model"""
+        interfaces = []
+        interface_uuids = set()
+        
+        # Extract from form-map (these are definitely interfaces)
+        form_map = pm_elem.find('{http://www.appian.com/ae/types/2009}form-map')
+        if form_map is not None:
+            for ui_expr in form_map.findall('.//{http://www.appian.com/ae/types/2009}uiExpressionForm'):
+                expr_elem = ui_expr.find('{http://www.appian.com/ae/types/2009}expression')
+                if expr_elem is not None and expr_elem.text:
+                    # Extract UUID from expression like #\"_a-uuid\"
+                    import re
+                    uuid_match = re.search(r'#\"(_a-[^\"]+)\"', expr_elem.text)
+                    if uuid_match:
+                        interface_uuid = uuid_match.group(1)
+                        interface_uuids.add(interface_uuid)
+        
+        # Convert to list with resolved names and filter by object type
+        for uuid in interface_uuids:
+            # Check if this UUID is actually an interface in our lookup
+            obj = self.object_lookup.get(uuid) if hasattr(self, 'object_lookup') else None
+            if obj and obj.get('object_type') == 'Interface':
+                interfaces.append({
+                    "uuid": uuid,
+                    "name": "Unknown"  # Will be resolved later
+                })
+        
+        return interfaces
+    
+    def _parse_rules(self, pm_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse rules used in the process model"""
+        rules = []
+        rule_uuids = set()
+        
+        # Extract from AC (activity class) elements - these contain business logic
+        nodes_elem = pm_elem.find('{http://www.appian.com/ae/types/2009}nodes')
+        if nodes_elem is not None:
+            for node in nodes_elem.findall('{http://www.appian.com/ae/types/2009}node'):
+                ac_elem = node.find('{http://www.appian.com/ae/types/2009}ac')
+                if ac_elem is not None:
+                    # Look for rule references in output expressions and other AC elements
+                    for child in ac_elem.iter():
+                        if child.text and 'form' not in child.tag.lower() and 'ui' not in child.tag.lower():
+                            import re
+                            uuid_matches = re.findall(r'#\"(_a-[^\"]+)\"', child.text)
+                            for uuid in uuid_matches:
+                                rule_uuids.add(uuid)
+        
+        # Convert to list with resolved names and filter by object type
+        for uuid in rule_uuids:
+            # Check if this UUID is actually a rule in our lookup
+            obj = self.object_lookup.get(uuid) if hasattr(self, 'object_lookup') else None
+            if obj and obj.get('object_type') == 'Expression Rule':
+                rules.append({
+                    "uuid": uuid,
+                    "name": "Unknown"  # Will be resolved later
+                })
+        
+        return rules
     
     def _parse_nodes(self, pm_elem: ET.Element) -> List[Dict[str, Any]]:
         """Parse process nodes"""
