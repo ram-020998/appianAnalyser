@@ -1,6 +1,6 @@
 # Appian Application Analyzer
 
-A professional Python tool for analyzing Appian application zip files and generating detailed blueprints optimized for Amazon Q analysis.
+A professional Python tool for analyzing Appian application zip files and generating detailed technical blueprints.
 
 ## Features
 
@@ -9,17 +9,21 @@ A professional Python tool for analyzing Appian application zip files and genera
 - **🎯 Smart Classification**: Automatic categorization of components by business domain
 - **📈 Complexity Analysis**: Sophisticated scoring and maintainability assessment
 - **🔍 Deep Insights**: Process automation levels, security patterns, integration analysis
-- **🤖 Q-Ready Output**: Structured prompts optimized for Amazon Q consumption
+- **📋 Object Lookup**: Complete UUID-to-name mapping for all objects
 
 ## Quick Start
 
 ```bash
-# Analyze an Appian application
-python3 analyze_appian.py applicationZips/RequirementsManagementv2.3.0.zip
+# Analyze an Appian application using module
+python3 -m src.appian_analyzer applicationZips/RequirementsManagementv2.3.0.zip
 
-# This generates:
-# - RequirementsManagementv2.3.0_blueprint.json (detailed analysis)
-# - RequirementsManagementv2.3.0_q_prompt.txt (Q-ready prompt)
+# Or install and use as command
+pip install -e .
+appian-analyzer applicationZips/RequirementsManagementv2.3.0.zip
+
+# This generates in output/ folder:
+# - RequirementsManagementv2.3.0_blueprint.json (detailed technical analysis)
+# - RequirementsManagementv2.3.0_object_lookup.json (UUID-to-name mapping)
 ```
 
 ## Installation
@@ -38,34 +42,39 @@ pip install -e .
 
 ## What Gets Analyzed
 
-### 1. Data Architecture (Enhanced)
-- **149 Custom Data Types** with field-level analysis
-- **Business Domain Classification** (Requirements Management, Audit, etc.)
+### 1. Data Architecture
+- **Record Types** with field-level analysis and relationships
+- **Data Types (CDTs)** with complete metadata
+- **Business Domain Classification**
 - **Relationship Mapping** and complexity scoring
-- **Circular Dependency Detection**
 
-### 2. Business Processes (New)
-- **196 Process Models** with node-level analysis
-- **Automation Level Assessment** (Manual, Partial, Highly Automated)
+### 2. Business Processes
+- **Process Models** with node-level analysis
+- **Automation Level Assessment**
 - **Business Function Mapping**
 - **Complexity Scoring** based on node types and patterns
 
-### 3. Integration Architecture (Enhanced)
-- **14 Integration Points** with pattern classification
-- **Security Level Assessment** (High, Medium, Low)
-- **Endpoint Analysis** and protocol detection
-- **Connected Systems vs Web APIs** differentiation
+### 3. Integration Architecture
+- **Connected Systems** with pattern classification
+- **Web APIs** and endpoint analysis
+- **Security Level Assessment**
+- **Integration Point Classification**
 
-### 4. Security Model (Enhanced)
-- **134 Security Groups** with type classification
+### 4. Security Model
+- **Security Groups** with type classification
 - **Business Function Mapping**
 - **Role-Based Access Analysis**
-- **Consolidation Opportunities**
 
-### 5. Application Intelligence
-- **Application Type Detection** (Process-Centric, Data-Centric, Hybrid, Portal)
+### 5. User Interface
+- **Sites** with page hierarchy analysis
+- **Interfaces** with component mapping
+- **Expression Rules** for business logic
+- **Constants** for configuration management
+
+### 6. Application Intelligence
+- **Application Type Detection**
 - **Complexity Assessment** (Low, Medium, High, Very High)
-- **Maintainability Scoring** (Excellent, Good, Moderate, Challenging)
+- **Maintainability Scoring**
 - **Actionable Recommendations**
 
 ## Project Structure
@@ -73,19 +82,11 @@ pip install -e .
 ```
 appianAnalyser/
 ├── src/appian_analyzer/           # Main package
-│   ├── models/                    # Data models
-│   ├── parsers/                   # Component parsers
-│   │   ├── datatype_parser.py     # XSD/Data type parsing
-│   │   ├── process_parser.py      # Process model parsing
-│   │   ├── integration_parser.py  # Connected systems & APIs
-│   │   └── security_parser.py     # Security groups
-│   ├── analyzers/                 # Analysis engines
-│   │   ├── blueprint_analyzer.py  # Blueprint enhancement
-│   │   └── q_generator.py         # Q prompt generation
-│   ├── core.py                    # Main analyzer class
-│   └── cli.py                     # Command line interface
-├── analyze_appian.py              # Simple runner script
+│   └── enhanced_core.py           # Enhanced analyzer with object lookup
+├── analyze_simple.py              # Simple CLI runner
 ├── applicationZips/               # Input zip files
+├── output/                        # Generated output files
+├── schemas/                       # XML schema documentation
 └── tests/                         # Test suite
 ```
 
@@ -95,23 +96,25 @@ For the Requirements Management application:
 
 ```
 🎯 Analysis Summary:
-  📱 Application: AS RM Full Application
-  📊 Type: Process-Centric
-  📈 Complexity: Very High
-  🔧 Maintainability: Challenging
-  📋 Components: 493
-  💡 Recommendations: 4
+  📱 Application: RequirementsManagementv2.3.0
+  📊 Complexity: Very High
+  📋 Total Objects: 3,172
+  💡 Recommendations: 2
 
-🎯 Key Recommendations:
-  1. Consider data model consolidation - high number of custom data types detected
-  2. Implement integration governance framework for better management
-  3. Review security group structure for consolidation opportunities
-  4. Consider performance optimization due to high application complexity
+🎯 Component Breakdown:
+  • Sites: 2
+  • Record Types: 110
+  • Process Models: 196
+  • Interfaces: 582
+  • Expression Rules: 1,271
+  • Security Groups: 132
+  • Constants: 702
+  • Integrations: 5
 ```
 
 ## Output Files
 
-### Enhanced Blueprint JSON
+### Technical Blueprint JSON
 Comprehensive structured analysis including:
 - Executive summary with intelligent metrics
 - Component-wise detailed breakdown
@@ -119,51 +122,41 @@ Comprehensive structured analysis including:
 - Complexity and maintainability assessments
 - Actionable recommendations
 
-### Intelligent Q Prompt
-Amazon Q-optimized prompt featuring:
-- Executive summary with key insights
-- Domain-specific analysis requests
-- Component summaries with business context
-- Priority recommendations
-- Structured data for deep analysis
-
-## Integration with Amazon Q
-
-The generated prompt provides Amazon Q with:
-
-1. **Contextual Understanding**: Business domains and application type
-2. **Focused Analysis Areas**: Based on actual component distribution
-3. **Priority Recommendations**: Data-driven insights
-4. **Structured Queries**: Optimized for comprehensive responses
+### Object Lookup JSON
+Complete UUID-to-name mapping for:
+- Easy object reference resolution
+- Cross-component relationship tracking
+- Development and maintenance support
 
 ## Advanced Usage
 
 ```bash
-# Custom output naming
-python3 analyze_appian.py app.zip -o custom_name
+# Analyze any Appian application zip using module
+python3 -m src.appian_analyzer path/to/your/application.zip
 
-# Skip Q prompt generation
-python3 analyze_appian.py app.zip --no-prompt
-
-# Use as Python package
+# Or use as Python package
 from appian_analyzer import AppianAnalyzer
 analyzer = AppianAnalyzer("app.zip")
-blueprint = analyzer.analyze()
+result = analyzer.analyze()
+blueprint = result["blueprint"]
+object_lookup = result["object_lookup"]
+
+# Output files will be generated in output/ folder
+ls output/
 ```
 
 ## Requirements
 
 - Python 3.7+
 - Standard library (no external dependencies for basic usage)
-- Optional: lxml for enhanced XML parsing
 
 ## Key Improvements
 
-✅ **Professional OOP Design**: Clean separation of concerns
-✅ **Enhanced Accuracy**: Better parsing and classification
-✅ **Intelligent Analysis**: Smart categorization and scoring
-✅ **Comprehensive Coverage**: All major Appian components
-✅ **Actionable Insights**: Data-driven recommendations
-✅ **Q Integration**: Optimized for Amazon Q analysis
+✅ **Professional OOP Design**: Clean separation of concerns  
+✅ **Enhanced Accuracy**: Better parsing and classification  
+✅ **Intelligent Analysis**: Smart categorization and scoring  
+✅ **Comprehensive Coverage**: All major Appian components  
+✅ **Actionable Insights**: Data-driven recommendations  
+✅ **Object Lookup**: Complete UUID-to-name mapping  
 
 This tool transforms raw Appian exports into intelligent architectural documentation, enabling better decision-making for development, maintenance, and optimization strategies.
