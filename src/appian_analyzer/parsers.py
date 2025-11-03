@@ -145,20 +145,29 @@ class RecordTypeParser(XMLParser):
         """Parse record relationships"""
         relationships = []
         for rel_elem in record_elem.findall('.//a:recordRelationshipCfg', self.namespaces):
+            # Relationship elements are direct children without namespace prefix
+            uuid_elem = rel_elem.find('uuid')
+            name_elem = rel_elem.find('relationshipName')
+            target_elem = rel_elem.find('targetRecordTypeUuid')
+            type_elem = rel_elem.find('relationshipType')
+            
             rel_data = {
-                "uuid": self._get_element_text(rel_elem, 'a:uuid'),
-                "name": self._get_element_text(rel_elem, 'a:relationshipName'),
+                "uuid": uuid_elem.text if uuid_elem is not None else "",
+                "name": name_elem.text if name_elem is not None else "",
                 "target_record": {
-                    "uuid": self._get_element_text(rel_elem, 'a:targetRecordTypeUuid'),
+                    "uuid": target_elem.text if target_elem is not None else "",
                     "name": "Unknown"
-                }
+                },
+                "type": type_elem.text if type_elem is not None else ""
             }
             relationships.append(rel_data)
         return relationships
     
     def _parse_actions(self, record_elem: ET.Element) -> List[Dict[str, Any]]:
-        """Parse record actions"""
+        """Parse record actions (both related actions and record list actions)"""
         actions = []
+        
+        # Parse related actions (actions on individual records)
         for action_elem in record_elem.findall('.//a:relatedActionCfg', self.namespaces):
             target_elem = action_elem.find('a:target', self.namespaces)
             target_uuid = target_elem.get('{http://www.appian.com/ae/types/2009}uuid') if target_elem is not None else None
@@ -167,12 +176,32 @@ class RecordTypeParser(XMLParser):
                 "uuid": action_elem.get('{http://www.appian.com/ae/types/2009}uuid'),
                 "title": self._get_element_text(action_elem, 'a:titleExpr'),
                 "description": self._get_element_text(action_elem, 'a:descriptionExpr'),
+                "type": "Related Action",
                 "target_process": {"uuid": target_uuid, "name": "Unknown"},
                 "context": self._get_element_text(action_elem, 'a:contextExpr'),
                 "visibility": self._get_element_text(action_elem, 'a:visibilityExpr'),
                 "security": {}
             }
             actions.append(action_data)
+        
+        # Parse record list actions (actions on record lists, like Create)
+        for action_elem in record_elem.findall('.//a:recordListActionCfg', self.namespaces):
+            target_elem = action_elem.find('a:target', self.namespaces)
+            target_uuid = target_elem.get('{http://www.appian.com/ae/types/2009}uuid') if target_elem is not None else None
+            
+            action_data = {
+                "uuid": action_elem.get('{http://www.appian.com/ae/types/2009}uuid'),
+                "title": self._get_element_text(action_elem, 'a:titleExpr'),
+                "description": self._get_element_text(action_elem, 'a:staticDescription'),
+                "type": "Record List Action",
+                "target_process": {"uuid": target_uuid, "name": "Unknown"},
+                "context": self._get_element_text(action_elem, 'a:contextExpr'),
+                "visibility": self._get_element_text(action_elem, 'a:visibilityExpr'),
+                "icon": self._get_element_text(action_elem, 'a:iconId'),
+                "security": {}
+            }
+            actions.append(action_data)
+        
         return actions
     
     def _parse_views(self, record_elem: ET.Element) -> List[Dict[str, Any]]:
@@ -210,8 +239,12 @@ class ProcessModelParser(XMLParser):
         desc_elem = meta_elem.find('{http://www.appian.com/ae/types/2009}desc')
         
         uuid = uuid_elem.text if uuid_elem is not None and uuid_elem.text else None
-        name = name_elem.text.strip() if name_elem is not None and name_elem.text else None
-        description = desc_elem.text.strip() if desc_elem is not None and desc_elem.text else ""
+        
+        # Parse name from string-map structure
+        name = self._parse_string_map(name_elem) if name_elem is not None else None
+        
+        # Parse description from string-map structure  
+        description = self._parse_string_map(desc_elem) if desc_elem is not None else ""
         
         if not uuid:
             return None
@@ -226,6 +259,33 @@ class ProcessModelParser(XMLParser):
         process.security = self._parse_security(root)
         
         return process
+    
+    def _parse_string_map(self, elem: ET.Element) -> str:
+        """Parse string-map structure to extract localized text"""
+        if elem is None:
+            return ""
+        
+        string_map = elem.find('a:string-map', self.namespaces)
+        if string_map is not None:
+            # Look for English locale pair
+            for pair in string_map.findall('a:pair', self.namespaces):
+                locale = pair.find('a:locale', self.namespaces)
+                value = pair.find('a:value', self.namespaces)
+                
+                if locale is not None and value is not None:
+                    lang = locale.get('lang', '')
+                    if lang == 'en':  # English locale
+                        return value.text.strip() if value.text else ""
+            
+            # Fallback to first pair if no English found
+            first_pair = string_map.find('a:pair', self.namespaces)
+            if first_pair is not None:
+                value = first_pair.find('a:value', self.namespaces)
+                if value is not None:
+                    return value.text.strip() if value.text else ""
+        
+        # Fallback to direct text if no string-map
+        return elem.text.strip() if elem.text else ""
     
     def _parse_variables(self, pm_elem: ET.Element) -> List[Dict[str, Any]]:
         """Parse process variables"""
