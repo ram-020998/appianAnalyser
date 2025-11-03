@@ -174,8 +174,6 @@ The analyzer now provides the deep application context that was missing from Nex
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-TO DO NOW
-
 The information which got extracted is good but its not complete. Ill give you some additional informaiton on
 how to improve the extraction.
 
@@ -305,3 +303,17 @@ With this information, revamp the extarction to extract the correct information.
 
 And in addition to the json based blueprint file. Create a human readable blueprint file which just has the actual names of the objects
 and not the uuids. This new file should have all functionalities and business logics in each actions.
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+TO DO NOW
+
+I have created object level xml structure informaiton for each object type and have placed them all in the schemas folder. I want you to 
+go through the contents and update the xml extraction logics of all object types. This would be like a bible to you. You will have 
+all the information that you need here.
+
+
+There is also an error:
+Json supplied at /Users/ramaswamy.u/repo/appianAnalyser/.amazonq/cli-agents/appian-blueprint-reader.json is invalid: unknown field `instructions`, expected one of `$schema`, `name`, `description`, `prompt`, `mcpServers`, `tools`, `toolAliases`, `allowedTools`, `resources`, `hooks`, `toolsSettings`, `useLegacyMcpJson`, `model` at line 3 column 16

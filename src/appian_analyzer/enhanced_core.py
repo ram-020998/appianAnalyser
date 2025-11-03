@@ -1,425 +1,801 @@
+"""
+Enhanced Appian Application Analyzer with Object Lookup and Improved XML Parsing
+"""
+
 import zipfile
-import shutil
-import json
-import csv
-from pathlib import Path
-from typing import Optional, Dict, List, Any
 import xml.etree.ElementTree as ET
-import urllib.parse
+import json
+import os
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass, asdict
 import re
 
+@dataclass
+class AppianObject:
+    """Represents an Appian object with basic metadata"""
+    s_no: int
+    uuid: str
+    name: str
+    object_type: str
+    description: str
+    file_path: str = ""
+
 class EnhancedAppianAnalyzer:
-    """Enhanced Appian analyzer with object lookup and detailed extraction"""
+    """Enhanced analyzer with object lookup and detailed XML parsing"""
     
-    def __init__(self, zip_path: str, extract_dir: str = "temp_extract", output_dir: str = "output"):
-        self.zip_path = Path(zip_path)
-        self.extract_dir = Path(extract_dir)
-        self.output_dir = Path(output_dir)
-        self.object_lookup = {}  # UUID -> object info
-        self.expression_rules = {}  # UUID -> expression rule info
-        self.blueprint = {}
+    def __init__(self, zip_path: str):
+        self.zip_path = zip_path
+        self.zip_file = zipfile.ZipFile(zip_path, 'r')
+        self.object_lookup: Dict[str, AppianObject] = {}
+        self.namespaces = {
+            'a': 'http://www.appian.com/ae/types/2009',
+            'xsd': 'http://www.w3.org/2001/XMLSchema'
+        }
         
-        if not self.zip_path.exists():
-            raise FileNotFoundError(f"Zip file not found: {zip_path}")
-        
-        self.output_dir.mkdir(exist_ok=True)
-    
     def analyze(self) -> Dict[str, Any]:
-        """Enhanced analysis with object lookup"""
-        print(f"🔍 Enhanced Analysis: {self.zip_path.name}")
+        """Main analysis method"""
+        print("🔍 Starting Enhanced Appian Analysis...")
         
-        try:
-            self._extract_application()
-            self._create_object_lookup()
-            self._analyze_all_components()
-            self._generate_human_readable_blueprint()
-            
-            print("✅ Enhanced analysis complete!")
-            return self.blueprint
-            
-        finally:
-            self._cleanup()
-    
-    def _extract_application(self):
-        """Extract the Appian zip file"""
-        if self.extract_dir.exists():
-            shutil.rmtree(self.extract_dir)
-        self.extract_dir.mkdir(parents=True)
+        # Step 1: Create object lookup table
+        print("📋 Creating object lookup table...")
+        self._create_object_lookup()
         
-        with zipfile.ZipFile(self.zip_path, 'r') as zip_ref:
-            zip_ref.extractall(self.extract_dir)
-        print(f"📦 Extracted to {self.extract_dir}")
+        # Step 2: Analyze each object type with enhanced parsing
+        print("🔧 Analyzing application components...")
+        blueprint = {
+            "metadata": self._extract_metadata(),
+            "object_lookup": {uuid: asdict(obj) for uuid, obj in self.object_lookup.items()},
+            "sites": self._analyze_sites(),
+            "record_types": self._analyze_record_types(),
+            "process_models": self._analyze_process_models(),
+            "interfaces": self._analyze_interfaces(),
+            "rules": self._analyze_rules(),
+            "data_types": self._analyze_data_types(),
+            "integrations": self._analyze_integrations(),
+            "security_groups": self._analyze_security_groups(),
+            "constants": self._analyze_constants(),
+            "summary": {}
+        }
+        
+        # Step 3: Generate summary and recommendations
+        blueprint["summary"] = self._generate_summary(blueprint)
+        
+        return blueprint
     
     def _create_object_lookup(self):
         """Create comprehensive object lookup table"""
-        print("📋 Creating object lookup table...")
-        
-        lookup_data = []
         s_no = 1
         
-        # Process all XML files to build lookup
-        for xml_file in self.extract_dir.rglob("*.xml"):
-            if "META-INF" in str(xml_file):
-                continue
-                
-            try:
-                tree = ET.parse(xml_file)
-                root = tree.getroot()
-                
-                # Determine object type from directory
-                object_type = self._get_object_type(xml_file)
-                
-                # Extract object info
-                obj_info = self._extract_object_info(root, object_type, xml_file)
-                if obj_info:
-                    obj_info["s_no"] = s_no
-                    lookup_data.append(obj_info)
-                    self.object_lookup[obj_info["uuid"]] = obj_info
-                    s_no += 1
+        for file_path in self.zip_file.namelist():
+            if file_path.endswith('.xml') and not file_path.startswith('META-INF/'):
+                try:
+                    content = self.zip_file.read(file_path).decode('utf-8')
+                    root = ET.fromstring(content)
                     
-            except ET.ParseError:
-                continue
+                    # Extract object info based on file structure
+                    uuid, name, description, object_type = self._extract_object_info(root, file_path)
+                    
+                    if uuid and name:
+                        # Skip deprecated objects
+                        if "DEPRECATED" not in name.upper():
+                            self.object_lookup[uuid] = AppianObject(
+                                s_no=s_no,
+                                uuid=uuid,
+                                name=name,
+                                object_type=object_type,
+                                description=description,
+                                file_path=file_path
+                            )
+                            s_no += 1
+                            
+                except Exception as e:
+                    print(f"⚠️  Error processing {file_path}: {e}")
+                    continue
         
-        # Save lookup table
-        self._save_lookup_table(lookup_data)
-        print(f"📊 Created lookup table with {len(lookup_data)} objects")
+        print(f"📊 Created lookup table with {len(self.object_lookup)} objects")
     
-    def _get_object_type(self, xml_file: Path) -> str:
-        """Determine object type from file path"""
-        path_parts = xml_file.parts
+    def _extract_object_info(self, root: ET.Element, file_path: str) -> tuple:
+        """Extract object info from different XML structures"""
+        uuid = None
+        name = None
+        description = ""
+        object_type = ""
         
-        if "site" in path_parts:
-            return "Site"
-        elif "datatype" in path_parts:
-            return "CDT"
-        elif "recordType" in path_parts:
-            return "Record Type"
-        elif "processModel" in path_parts:
-            return "Process Model"
-        elif "connectedSystem" in path_parts:
-            return "Connected System"
-        elif "webApi" in path_parts:
-            return "Web API"
-        elif "group" in path_parts:
-            return "Security Group"
-        elif "content" in path_parts:
-            return "Interface/Content"
-        else:
-            return "Unknown"
-    
-    def _extract_object_info(self, root: ET.Element, object_type: str, xml_file: Path) -> Optional[Dict]:
-        """Extract basic object information"""
-        try:
-            if object_type == "Site":
-                site_elem = root.find(".//site")
-                if site_elem is not None:
-                    return {
-                        "uuid": site_elem.get("uuid", ""),
-                        "name": site_elem.get("name", ""),
-                        "type": object_type,
-                        "description": self._get_text(root, ".//description"),
-                        "file": xml_file.name
-                    }
-            
-            elif object_type == "CDT":
-                # Extract from XSD schema
-                complex_types = root.findall(".//{http://www.w3.org/2001/XMLSchema}complexType")
-                if complex_types:
-                    ct = complex_types[0]  # Take first complex type
-                    return {
-                        "uuid": xml_file.stem,  # Use filename as UUID for CDTs
-                        "name": ct.get("name", ""),
-                        "type": object_type,
-                        "description": self._extract_table_name_from_cdt(ct),
-                        "file": xml_file.name
-                    }
-            
-            elif object_type == "Record Type":
-                record_elem = root.find(".//recordType")
-                if record_elem is not None:
-                    return {
-                        "uuid": record_elem.get("{http://www.appian.com/ae/types/2009}uuid", ""),
-                        "name": record_elem.get("name", ""),
-                        "type": object_type,
-                        "description": self._get_text(record_elem, "{http://www.appian.com/ae/types/2009}description"),
-                        "file": xml_file.name
-                    }
-            
-            elif object_type == "Process Model":
-                return {
-                    "uuid": self._get_text(root, ".//uuid"),
-                    "name": self._get_text(root, ".//name"),
-                    "type": object_type,
-                    "description": self._get_text(root, ".//description"),
-                    "file": xml_file.name
-                }
-            
-            elif object_type == "Security Group":
-                return {
-                    "uuid": self._get_text(root, ".//uuid"),
-                    "name": self._get_text(root, ".//name"),
-                    "type": object_type,
-                    "description": self._get_text(root, ".//description"),
-                    "file": xml_file.name
-                }
-            
-            # Add other object types as needed
-            
-        except Exception:
-            pass
+        # Determine object type from file path
+        if 'recordType/' in file_path:
+            object_type = "Record Type"
+            record_elem = root.find('recordType')
+            if record_elem is not None:
+                uuid = record_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+                name = record_elem.get('name')
+                desc_elem = record_elem.find('a:description', self.namespaces)
+                description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
         
-        return None
-    
-    def _extract_table_name_from_cdt(self, complex_type: ET.Element) -> str:
-        """Extract table name from CDT annotations"""
-        try:
-            annotations = complex_type.findall(".//annotation")
-            for annotation in annotations:
-                appinfo = annotation.find(".//appinfo")
-                if appinfo is not None and appinfo.text:
-                    text = appinfo.text
-                    if "@Table(name=" in text:
-                        start = text.find('name="') + 6
-                        end = text.find('"', start)
-                        return f"Table: {text[start:end]}" if start > 5 and end > start else ""
-        except Exception:
-            pass
-        return ""
-    
-    def _get_text(self, element: ET.Element, xpath: str) -> str:
-        """Safely extract text from XML element"""
-        try:
-            found = element.find(xpath)
-            return found.text.strip() if found is not None and found.text else ""
-        except Exception:
-            return ""
-    
-    def _save_lookup_table(self, lookup_data: List[Dict]):
-        """Save object lookup table as CSV"""
-        csv_file = self.output_dir / f"{self.zip_path.stem}_object_lookup.csv"
+        elif 'processModel/' in file_path:
+            object_type = "Process Model"
+            # Process models are nested in process_model_port -> pm -> meta
+            pm_port = root.find('{http://www.appian.com/ae/types/2009}process_model_port')
+            if pm_port is not None:
+                pm_elem = pm_port.find('{http://www.appian.com/ae/types/2009}pm')
+                if pm_elem is not None:
+                    meta_elem = pm_elem.find('{http://www.appian.com/ae/types/2009}meta')
+                    if meta_elem is not None:
+                        uuid_elem = meta_elem.find('{http://www.appian.com/ae/types/2009}uuid')
+                        name_elem = meta_elem.find('{http://www.appian.com/ae/types/2009}name')
+                        desc_elem = meta_elem.find('{http://www.appian.com/ae/types/2009}desc')
+                        
+                        uuid = uuid_elem.text if uuid_elem is not None and uuid_elem.text else None
+                        name = name_elem.text.strip() if name_elem is not None and name_elem.text else None
+                        description = desc_elem.text.strip() if desc_elem is not None and desc_elem.text else ""
+                        
+                        # If name is empty, use UUID as name
+                        if not name and uuid:
+                            name = f"Process Model {uuid.split('-')[0]}"
         
-        with open(csv_file, 'w', newline='', encoding='utf-8') as f:
-            if lookup_data:
-                writer = csv.DictWriter(f, fieldnames=["s_no", "uuid", "name", "type", "description", "file"])
-                writer.writeheader()
-                writer.writerows(lookup_data)
+        elif 'site/' in file_path:
+            object_type = "Site"
+            site_elem = root.find('site')
+            if site_elem is not None:
+                uuid = site_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+                name = site_elem.get('name')
+                desc_elem = site_elem.find('description')
+                description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
         
-        print(f"📊 Object lookup saved to {csv_file}")
+        elif 'group/' in file_path:
+            object_type = "Security Group"
+            group_elem = root.find('group')
+            if group_elem is not None:
+                uuid_elem = group_elem.find('uuid')
+                name_elem = group_elem.find('name')
+                desc_elem = group_elem.find('description')
+                uuid = uuid_elem.text if uuid_elem is not None and uuid_elem.text else None
+                name = name_elem.text if name_elem is not None and name_elem.text else None
+                description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+        
+        elif 'connectedSystem/' in file_path:
+            object_type = "Connected System"
+            cs_elem = root.find('connectedSystem')
+            if cs_elem is not None:
+                uuid = cs_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+                name = cs_elem.get('name')
+                desc_elem = cs_elem.find('a:description', self.namespaces)
+                description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+        
+        elif 'webApi/' in file_path:
+            object_type = "Web API"
+            api_elem = root.find('webApi')
+            if api_elem is not None:
+                uuid = api_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+                name = api_elem.get('name')
+                desc_elem = api_elem.find('a:description', self.namespaces)
+                description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+        
+        elif 'tempoReport/' in file_path:
+            object_type = "Report"
+            report_elem = root.find('tempoReport')
+            if report_elem is not None:
+                uuid = report_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+                name = report_elem.get('name')
+                desc_elem = report_elem.find('a:description', self.namespaces)
+                description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+        
+        elif 'content/' in file_path:
+            # Content can be various types - check the actual element
+            for child in root:
+                if child.tag.endswith('Haul') or child.tag in ['versionUuid', 'roleMap', 'history', 'migrationVersion']:
+                    continue
+                
+                # Check if it has child elements for metadata (newer format)
+                uuid_elem = child.find('uuid')
+                name_elem = child.find('name')
+                desc_elem = child.find('description')
+                
+                if uuid_elem is not None and name_elem is not None:
+                    uuid = uuid_elem.text
+                    name = name_elem.text
+                    description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+                    object_type = self._determine_content_type(child.tag)
+                    break
+                
+                # Fallback to attribute-based extraction (older format)
+                uuid_attr = child.get('{http://www.appian.com/ae/types/2009}uuid')
+                name_attr = child.get('name')
+                if uuid_attr and name_attr:
+                    uuid = uuid_attr
+                    name = name_attr
+                    object_type = self._determine_content_type(child.tag)
+                    desc_elem = child.find('a:description', self.namespaces)
+                    description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+                    break
+        
+        elif 'application/' in file_path:
+            object_type = "Application"
+            app_elem = root.find('application')
+            if app_elem is not None:
+                uuid = app_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+                name = app_elem.get('name')
+                desc_elem = app_elem.find('a:description', self.namespaces)
+                description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+        
+        elif 'dataStore/' in file_path:
+            object_type = "Data Store"
+            ds_elem = root.find('dataStore')
+            if ds_elem is not None:
+                uuid = ds_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+                name = ds_elem.get('name')
+                desc_elem = ds_elem.find('a:description', self.namespaces)
+                description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+        
+        elif 'Folder' in file_path:
+            object_type = "Folder"
+            folder_elem = root.find('folder')
+            if folder_elem is not None:
+                uuid = folder_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+                name = folder_elem.get('name')
+                desc_elem = folder_elem.find('a:description', self.namespaces)
+                description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
+        
+        return uuid, name, description, object_type
     
-    def _analyze_all_components(self):
-        """Analyze all components with enhanced extraction"""
-        self.blueprint = {
-            "application_info": self._analyze_application_info(),
-            "sites": self._analyze_sites_enhanced(),
-            "data_model": self._analyze_data_model_enhanced(),
-            "record_types": self._analyze_record_types_enhanced(),
-            "process_models": self._analyze_process_models_enhanced(),
-            "integrations": self._analyze_integrations_enhanced(),
-            "security": self._analyze_security_enhanced(),
-            "expression_rules": self._extract_expression_rules()
+    def _determine_content_type(self, tag: str) -> str:
+        """Determine content object type from XML tag"""
+        type_mapping = {
+            'interface': 'Interface',
+            'rule': 'Expression Rule',
+            'constant': 'Constant',
+            'datatype': 'Data Type',
+            'decision': 'Decision',
+            'queryRule': 'Query Rule',
+            'document': 'Document',
+            'folder': 'Folder',
+            'rulesFolder': 'Rules Folder',
+            'communityKnowledgeCenter': 'Knowledge Center',
+            'contentFreeformRule': 'Content Rule'
         }
+        
+        # Remove namespace prefix
+        clean_tag = tag.split('}')[-1] if '}' in tag else tag
+        return type_mapping.get(clean_tag, clean_tag)
     
-    def _analyze_application_info(self) -> Dict:
-        """Analyze application information"""
-        app_dir = self.extract_dir / "application"
-        if not app_dir.exists():
-            return {}
-        
-        for xml_file in app_dir.glob("*.xml"):
-            try:
-                tree = ET.parse(xml_file)
-                root = tree.getroot()
-                
-                app_elem = root.find(".//application")
-                if app_elem is not None:
-                    return {
-                        "name": app_elem.get("name", ""),
-                        "description": self._get_text(app_elem, "description"),
-                        "uuid": app_elem.get("uuid", "")
-                    }
-            except ET.ParseError:
-                continue
-        
-        return {}
-    
-    def _analyze_sites_enhanced(self) -> List[Dict]:
-        """Enhanced site analysis with page hierarchy and UI objects"""
-        site_dir = self.extract_dir / "site"
-        if not site_dir.exists():
-            return []
-        
+    def _analyze_sites(self) -> List[Dict[str, Any]]:
+        """Analyze site objects with enhanced parsing"""
         sites = []
-        for xml_file in site_dir.glob("*.xml"):
-            try:
-                tree = ET.parse(xml_file)
-                root = tree.getroot()
-                
-                site_elem = root.find(".//site")
-                if site_elem is not None:
-                    site_info = {
-                        "uuid": site_elem.get("uuid", ""),
-                        "name": site_elem.get("name", ""),
-                        "description": self._get_text(site_elem, "description"),
-                        "pages": self._extract_site_pages_enhanced(site_elem)
-                    }
-                    sites.append(site_info)
+        
+        for uuid, obj in self.object_lookup.items():
+            if obj.object_type == 'Site':
+                try:
+                    content = self.zip_file.read(obj.file_path).decode('utf-8')
+                    root = ET.fromstring(content)
+                    site_elem = root.find('site', self.namespaces)
                     
-            except ET.ParseError:
-                continue
+                    if site_elem is not None:
+                        site_data = {
+                            "uuid": uuid,
+                            "name": obj.name,
+                            "description": obj.description,
+                            "pages": self._parse_site_pages(site_elem),
+                            "security": self._parse_site_security(root)
+                        }
+                        sites.append(site_data)
+                    
+                except Exception as e:
+                    print(f"⚠️  Error analyzing site {obj.name}: {e}")
         
         return sites
     
-    def _extract_site_pages_enhanced(self, site_elem: ET.Element) -> List[Dict]:
-        """Extract site pages with UI objects and visibility expressions"""
+    def _parse_site_pages(self, site_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse site pages with hierarchy and UI objects"""
         pages = []
         
-        for page_elem in site_elem.findall(".//page"):
-            page_uuid = page_elem.get("uuid", "")
+        for page_elem in site_elem.findall('page', self.namespaces):
+            page_uuid = page_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+            static_name = self._get_element_text(page_elem, 'staticName')
             
-            # Extract UI object
-            ui_object_elem = page_elem.find(".//uiObject")
-            ui_object_uuid = ui_object_elem.get("uuid") if ui_object_elem is not None else ""
-            ui_object_name = self._resolve_object_name(ui_object_uuid)
-            
-            # Extract visibility expression
-            visibility_expr = self._get_text(page_elem, "visibilityExpr")
-            expression_rules = self._extract_expression_rule_uuids(visibility_expr)
-            
-            page_info = {
+            page_data = {
                 "uuid": page_uuid,
-                "name": self._get_text(page_elem, "nameExpr"),
-                "ui_object": {
-                    "uuid": ui_object_uuid,
-                    "name": ui_object_name,
-                    "type": self._get_object_type_by_uuid(ui_object_uuid)
-                },
-                "visibility": {
-                    "expression": visibility_expr,
-                    "expression_rules": expression_rules
-                },
-                "url_stub": self._get_text(page_elem, "urlStub")
+                "name": static_name,
+                "ui_objects": [],
+                "visibility": self._get_element_text(page_elem, 'visibilityExpr'),
+                "sub_pages": []
             }
             
-            pages.append(page_info)
+            # Parse UI objects
+            ui_elem = page_elem.find('uiObject', self.namespaces)
+            if ui_elem is not None:
+                ui_uuid = ui_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+                ui_type = ui_elem.get('{http://www.w3.org/2001/XMLSchema-instance}type', '')
+                ui_obj = self.object_lookup.get(ui_uuid)
+                page_data["ui_objects"].append({
+                    "uuid": ui_uuid,
+                    "name": ui_obj.name if ui_obj else "Unknown",
+                    "type": ui_type.replace('a:', '') if ui_type else "Unknown"
+                })
+            
+            pages.append(page_data)
         
         return pages
     
-    def _extract_expression_rule_uuids(self, expression: str) -> List[Dict]:
-        """Extract expression rule UUIDs from expressions"""
-        if not expression:
-            return []
+    def _analyze_record_types(self) -> List[Dict[str, Any]]:
+        """Analyze record types with enhanced field and action parsing"""
+        record_types = []
         
-        # Pattern to match expression rule calls: #"uuid"()
-        pattern = r'#"([a-f0-9-_]+)"'
-        matches = re.findall(pattern, expression)
+        for uuid, obj in self.object_lookup.items():
+            if obj.object_type == 'Record Type':
+                try:
+                    content = self.zip_file.read(obj.file_path).decode('utf-8')
+                    root = ET.fromstring(content)
+                    record_elem = root.find('recordType', self.namespaces)
+                    
+                    if record_elem is not None:
+                        record_data = {
+                            "uuid": uuid,
+                            "name": obj.name,
+                            "description": obj.description,
+                            "fields": self._parse_record_fields(record_elem),
+                            "relationships": self._parse_record_relationships(record_elem),
+                            "actions": self._parse_record_actions(record_elem),
+                            "views": self._parse_record_views(record_elem),
+                            "security": self._parse_site_security(root)
+                        }
+                        record_types.append(record_data)
+                    
+                except Exception as e:
+                    print(f"⚠️  Error analyzing record type {obj.name}: {e}")
         
-        expression_rules = []
-        for uuid in matches:
-            rule_name = self._resolve_object_name(uuid)
-            expression_rules.append({
-                "uuid": uuid,
-                "name": rule_name,
-                "type": "Expression Rule"
-            })
-        
-        return expression_rules
+        return record_types
     
-    def _resolve_object_name(self, uuid: str) -> str:
-        """Resolve object name from UUID using lookup table"""
-        if uuid in self.object_lookup:
-            return self.object_lookup[uuid]["name"]
-        return f"Unknown ({uuid[:8]}...)"
+    def _analyze_process_models(self) -> List[Dict[str, Any]]:
+        """Analyze process models with enhanced node parsing"""
+        process_models = []
+        
+        for uuid, obj in self.object_lookup.items():
+            if obj.object_type == 'Process Model':
+                try:
+                    content = self.zip_file.read(obj.file_path).decode('utf-8')
+                    root = ET.fromstring(content)
+                    pm_elem = root.find('processModel')
+                    
+                    if pm_elem is not None:
+                        process_data = {
+                            "uuid": uuid,
+                            "name": obj.name,
+                            "description": obj.description,
+                            "variables": self._parse_process_variables(pm_elem),
+                            "nodes": self._parse_process_nodes(pm_elem),
+                            "flows": self._parse_process_flows(pm_elem),
+                            "security": self._parse_pm_security(root)
+                        }
+                        process_models.append(process_data)
+                    
+                except Exception as e:
+                    print(f"⚠️  Error analyzing process model {obj.name}: {e}")
+        
+        return process_models
     
-    def _get_object_type_by_uuid(self, uuid: str) -> str:
-        """Get object type by UUID"""
-        if uuid in self.object_lookup:
-            return self.object_lookup[uuid]["type"]
+    def _parse_record_fields(self, record_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse record type fields"""
+        fields = []
+        
+        for field_elem in record_elem.findall('.//a:field', self.namespaces):
+            field_data = {
+                "name": self._get_element_text(field_elem, 'a:name'),
+                "type": self._get_element_text(field_elem, 'a:type'),
+                "required": self._get_element_text(field_elem, 'a:required') == 'true',
+                "primary_key": self._get_element_text(field_elem, 'a:primaryKey') == 'true'
+            }
+            fields.append(field_data)
+        
+        return fields
+    
+    def _parse_record_relationships(self, record_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse record type relationships"""
+        relationships = []
+        
+        for rel_elem in record_elem.findall('.//a:recordRelationshipCfg', self.namespaces):
+            rel_uuid = self._get_element_text(rel_elem, 'a:uuid')
+            target_uuid = self._get_element_text(rel_elem, 'a:targetRecordTypeUuid')
+            target_obj = self.object_lookup.get(target_uuid)
+            
+            rel_data = {
+                "uuid": rel_uuid,
+                "name": self._get_element_text(rel_elem, 'a:relationshipName'),
+                "target_record": {
+                    "uuid": target_uuid,
+                    "name": target_obj.name if target_obj else "Unknown"
+                }
+            }
+            relationships.append(rel_data)
+        
+        return relationships
+    
+    def _parse_record_actions(self, record_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse record actions with enhanced details"""
+        actions = []
+        
+        for action_elem in record_elem.findall('.//a:relatedActionCfg', self.namespaces):
+            action_uuid = action_elem.get('{http://www.appian.com/ae/types/2009}uuid')
+            
+            # Parse target process model
+            target_elem = action_elem.find('a:target', self.namespaces)
+            target_uuid = target_elem.get('{http://www.appian.com/ae/types/2009}uuid') if target_elem is not None else None
+            target_obj = self.object_lookup.get(target_uuid) if target_uuid else None
+            
+            action_data = {
+                "uuid": action_uuid,
+                "title": self._get_text_or_expression(action_elem.find('a:titleExpr', self.namespaces)),
+                "description": self._get_text_or_expression(action_elem.find('a:descriptionExpr', self.namespaces)),
+                "target_process": {
+                    "uuid": target_uuid,
+                    "name": target_obj.name if target_obj else "Unknown"
+                },
+                "context": self._get_element_text(action_elem, 'a:contextExpr'),
+                "visibility": self._get_element_text(action_elem, 'a:visibilityExpr'),
+                "security": self._parse_action_security(action_elem)
+            }
+            actions.append(action_data)
+        
+        return actions
+    
+    def _parse_record_views(self, record_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse record views"""
+        views = []
+        
+        for view_elem in record_elem.findall('.//a:recordView', self.namespaces):
+            view_data = {
+                "name": self._get_element_text(view_elem, 'a:name'),
+                "type": self._get_element_text(view_elem, 'a:type')
+            }
+            views.append(view_data)
+        
+        return views
+    
+    def _parse_process_variables(self, pm_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse process variables"""
+        variables = []
+        
+        for pv_elem in pm_elem.findall('.//pvs/pv'):
+            var_data = {
+                "name": self._get_element_text(pv_elem, 'name'),
+                "type": self._get_element_text(pv_elem, 'type'),
+                "parameter": self._get_element_text(pv_elem, 'parameter') == 'true',
+                "multiple": self._get_element_text(pv_elem, 'multiple') == 'true'
+            }
+            variables.append(var_data)
+        
+        return variables
+    
+    def _parse_process_nodes(self, pm_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse process model nodes with detailed analysis"""
+        nodes = []
+        
+        for node_elem in pm_elem.findall('.//nodes/node'):
+            node_uuid = node_elem.get('uuid')
+            node_data = {
+                "uuid": node_uuid,
+                "name": self._get_element_text(node_elem, 'name'),
+                "type": self._determine_node_type(node_elem),
+                "details": self._parse_node_details(node_elem)
+            }
+            nodes.append(node_data)
+        
+        return nodes
+    
+    def _parse_process_flows(self, pm_elem: ET.Element) -> List[Dict[str, Any]]:
+        """Parse process flows"""
+        flows = []
+        
+        for flow_elem in pm_elem.findall('.//flows/flow'):
+            flow_data = {
+                "from": self._get_element_text(flow_elem, 'from'),
+                "to": self._get_element_text(flow_elem, 'to'),
+                "condition": self._get_element_text(flow_elem, 'condition')
+            }
+            flows.append(flow_data)
+        
+        return flows
+    
+    def _parse_site_security(self, root: ET.Element) -> Dict[str, Any]:
+        """Parse site security configuration"""
+        return self._parse_security_from_rolemap(root)
+    
+    def _parse_pm_security(self, root: ET.Element) -> Dict[str, Any]:
+        """Parse process model security configuration"""
+        security = {"roles": []}
+        
+        role_map = root.find('roleMap')
+        if role_map is not None:
+            for role_elem in role_map.findall('role'):
+                role_name = role_elem.get('name')
+                
+                # Get users
+                users_elem = role_elem.find('users')
+                users = []
+                if users_elem is not None:
+                    for user_elem in users_elem.findall('userUuid'):
+                        users.append(user_elem.text)
+                
+                # Get groups
+                groups_elem = role_elem.find('groups')
+                groups = []
+                if groups_elem is not None:
+                    for group_elem in groups_elem.findall('groupUuid'):
+                        group_uuid = group_elem.text
+                        group_obj = self.object_lookup.get(group_uuid)
+                        groups.append({
+                            "uuid": group_uuid,
+                            "name": group_obj.name if group_obj else "Unknown"
+                        })
+                
+                if users or groups:
+                    security["roles"].append({
+                        "role": role_name,
+                        "users": users,
+                        "groups": groups
+                    })
+        
+        return security
+    
+    def _parse_security_from_rolemap(self, root: ET.Element) -> Dict[str, Any]:
+        """Parse security from roleMap structure"""
+        security = {"roles": []}
+        
+        for role_elem in root.findall('.//roleMap/role'):
+            role_name = role_elem.get('name')
+            
+            # Get users and groups
+            users = [u.text for u in role_elem.findall('.//userUuid')]
+            group_uuids = [g.text for g in role_elem.findall('.//groupUuid')]
+            
+            groups = []
+            for group_uuid in group_uuids:
+                group_obj = self.object_lookup.get(group_uuid)
+                groups.append({
+                    "uuid": group_uuid,
+                    "name": group_obj.name if group_obj else "Unknown"
+                })
+            
+            if users or groups:
+                security["roles"].append({
+                    "role": role_name,
+                    "users": users,
+                    "groups": groups
+                })
+        
+        return security
+    
+    def _analyze_interfaces(self) -> List[Dict[str, Any]]:
+        """Analyze interfaces"""
+        interfaces = []
+        
+        for uuid, obj in self.object_lookup.items():
+            if obj.object_type == 'Interface':
+                interfaces.append({
+                    "uuid": uuid,
+                    "name": obj.name,
+                    "description": obj.description
+                })
+        
+        return interfaces
+    
+    def _analyze_rules(self) -> List[Dict[str, Any]]:
+        """Analyze expression rules"""
+        rules = []
+        
+        for uuid, obj in self.object_lookup.items():
+            if obj.object_type == 'Expression Rule':
+                rules.append({
+                    "uuid": uuid,
+                    "name": obj.name,
+                    "description": obj.description
+                })
+        
+        return rules
+    
+    def _analyze_data_types(self) -> List[Dict[str, Any]]:
+        """Analyze data types (CDTs)"""
+        data_types = []
+        
+        for uuid, obj in self.object_lookup.items():
+            if obj.object_type == 'Data Type':
+                data_types.append({
+                    "uuid": uuid,
+                    "name": obj.name,
+                    "description": obj.description
+                })
+        
+        return data_types
+    
+    def _analyze_integrations(self) -> List[Dict[str, Any]]:
+        """Analyze integrations and connected systems"""
+        integrations = []
+        
+        for uuid, obj in self.object_lookup.items():
+            if obj.object_type in ['Connected System', 'Web API']:
+                integrations.append({
+                    "uuid": uuid,
+                    "name": obj.name,
+                    "description": obj.description,
+                    "type": obj.object_type
+                })
+        
+        return integrations
+    
+    def _analyze_security_groups(self) -> List[Dict[str, Any]]:
+        """Analyze security groups"""
+        groups = []
+        
+        for uuid, obj in self.object_lookup.items():
+            if obj.object_type == 'Security Group':
+                groups.append({
+                    "uuid": uuid,
+                    "name": obj.name,
+                    "description": obj.description,
+                    "type": self._classify_group_type(obj.name)
+                })
+        
+        return groups
+    
+    def _analyze_constants(self) -> List[Dict[str, Any]]:
+        """Analyze constants"""
+        constants = []
+        
+        for uuid, obj in self.object_lookup.items():
+            if obj.object_type == 'Constant':
+                constants.append({
+                    "uuid": uuid,
+                    "name": obj.name,
+                    "description": obj.description
+                })
+        
+        return constants
+    
+    def _determine_node_type(self, node_elem: ET.Element) -> str:
+        """Determine the type of process node"""
+        # Check for form configuration
+        if node_elem.find('.//form-config') is not None:
+            return "User Input Task"
+        
+        # Check for expression
+        if node_elem.find('.//expr') is not None:
+            return "Script Task"
+        
+        # Check for subprocess call
+        if node_elem.find('.//subprocess') is not None:
+            return "Call Process"
+        
         return "Unknown"
     
-    def _analyze_data_model_enhanced(self) -> Dict:
-        """Enhanced CDT analysis with relationships and table mappings"""
-        # Implementation for enhanced CDT analysis
+    def _parse_node_details(self, node_elem: ET.Element) -> Dict[str, Any]:
+        """Parse detailed node configuration"""
+        details = {}
+        
+        # Parse form configuration
+        form_config = node_elem.find('.//form-config')
+        if form_config is not None:
+            ui_expr = form_config.find('.//uiExpressionForm')
+            if ui_expr is not None:
+                interface_uuid = ui_expr.text
+                interface_obj = self.object_lookup.get(interface_uuid)
+                details["interface"] = {
+                    "uuid": interface_uuid,
+                    "name": interface_obj.name if interface_obj else "Unknown"
+                }
+        
+        # Parse expressions
+        expr_elem = node_elem.find('.//expr')
+        if expr_elem is not None:
+            details["expression"] = expr_elem.text
+        
+        return details
+    
+    def _parse_security(self, root: ET.Element) -> Dict[str, Any]:
+        """Parse security configuration - simplified"""
+        return {"roles": []}
+    
+    def _parse_action_security(self, action_elem: ET.Element) -> Dict[str, Any]:
+        """Parse action-specific security"""
         return {}
     
-    def _analyze_record_types_enhanced(self) -> List[Dict]:
-        """Enhanced record type analysis with actions and relationships"""
-        # Implementation for enhanced record type analysis
+    def _parse_rule_inputs(self, root: ET.Element) -> List[Dict[str, Any]]:
+        """Parse rule inputs - simplified"""
         return []
     
-    def _analyze_process_models_enhanced(self) -> List[Dict]:
-        """Enhanced process model analysis with nodes and business logic"""
-        # Implementation for enhanced process model analysis
+    def _parse_data_type_elements(self, root: ET.Element) -> List[Dict[str, Any]]:
+        """Parse data type elements - simplified"""
         return []
     
-    def _analyze_integrations_enhanced(self) -> List[Dict]:
-        """Enhanced integration analysis"""
-        # Implementation for enhanced integration analysis
-        return []
-    
-    def _analyze_security_enhanced(self) -> List[Dict]:
-        """Enhanced security analysis"""
-        # Implementation for enhanced security analysis
-        return []
-    
-    def _extract_expression_rules(self) -> Dict:
-        """Extract all expression rules referenced in the application"""
-        return self.expression_rules
-    
-    def _generate_human_readable_blueprint(self):
-        """Generate human-readable blueprint with actual names"""
-        readable_blueprint = self._convert_uuids_to_names(self.blueprint)
+    def _classify_group_type(self, group_name: str) -> str:
+        """Classify security group type based on name patterns"""
+        name_lower = group_name.lower()
         
-        # Save human-readable blueprint
-        readable_file = self.output_dir / f"{self.zip_path.stem}_readable_blueprint.json"
-        with open(readable_file, 'w') as f:
-            json.dump(readable_blueprint, f, indent=2)
-        
-        print(f"📖 Human-readable blueprint saved to {readable_file}")
-    
-    def _convert_uuids_to_names(self, data: Any) -> Any:
-        """Recursively convert UUIDs to human-readable names"""
-        if isinstance(data, dict):
-            result = {}
-            for key, value in data.items():
-                if key == "uuid" and isinstance(value, str) and value in self.object_lookup:
-                    result[key] = f"{self.object_lookup[value]['name']} ({value[:8]})"
-                else:
-                    result[key] = self._convert_uuids_to_names(value)
-            return result
-        elif isinstance(data, list):
-            return [self._convert_uuids_to_names(item) for item in data]
+        if any(word in name_lower for word in ['admin', 'administrator']):
+            return 'Administrative'
+        elif any(word in name_lower for word in ['read', 'view', 'viewer']):
+            return 'Read-Only'
+        elif any(word in name_lower for word in ['edit', 'editor', 'modify']):
+            return 'Editor'
+        elif any(word in name_lower for word in ['user', 'basic']):
+            return 'Basic User'
         else:
-            return data
+            return 'Functional'
     
-    def _cleanup(self):
-        """Clean up extracted files"""
-        if self.extract_dir.exists():
-            shutil.rmtree(self.extract_dir)
+    def _get_element_text(self, parent: ET.Element, xpath: str) -> str:
+        """Safely get element text"""
+        elem = parent.find(xpath, self.namespaces)
+        return elem.text if elem is not None and elem.text else ""
     
-    def save_blueprint(self, output_file: Optional[str] = None) -> str:
-        """Save enhanced blueprint"""
-        if output_file is None:
-            output_file = self.output_dir / f"{self.zip_path.stem}_enhanced_blueprint.json"
+    def _get_text_or_expression(self, elem: ET.Element) -> str:
+        """Get text or parse expression reference"""
+        if elem is None or not elem.text:
+            return ""
+        
+        text = elem.text.strip()
+        
+        # Check if it's an expression rule reference
+        if text.startswith('#"_a-') and text.endswith('"()'):
+            # Extract UUID from expression
+            uuid_match = re.search(r'_a-([a-f0-9-]+)', text)
+            if uuid_match:
+                full_uuid = f"_a-{uuid_match.group(1)}"
+                obj = self.object_lookup.get(full_uuid)
+                return f"Expression: {obj.name}" if obj else f"Expression: {full_uuid}"
+        
+        return text
+    
+    def _extract_metadata(self) -> Dict[str, Any]:
+        """Extract application metadata"""
+        app_name = os.path.basename(self.zip_path).replace('.zip', '')
+        
+        return {
+            "application_name": app_name,
+            "total_objects": len(self.object_lookup),
+            "analysis_timestamp": "2025-11-03T12:06:39.395+05:30"
+        }
+    
+    def _generate_summary(self, blueprint: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate analysis summary"""
+        return {
+            "total_sites": len(blueprint["sites"]),
+            "total_record_types": len(blueprint["record_types"]),
+            "total_process_models": len(blueprint["process_models"]),
+            "total_interfaces": len(blueprint["interfaces"]),
+            "total_rules": len(blueprint["rules"]),
+            "total_data_types": len(blueprint["data_types"]),
+            "total_integrations": len(blueprint["integrations"]),
+            "total_security_groups": len(blueprint["security_groups"]),
+            "total_constants": len(blueprint["constants"]),
+            "complexity_assessment": self._assess_complexity(blueprint),
+            "recommendations": self._generate_recommendations(blueprint)
+        }
+    
+    def _assess_complexity(self, blueprint: Dict[str, Any]) -> str:
+        """Assess application complexity"""
+        total_objects = len(self.object_lookup)
+        
+        if total_objects > 400:
+            return "Very High"
+        elif total_objects > 200:
+            return "High"
+        elif total_objects > 100:
+            return "Medium"
         else:
-            output_file = self.output_dir / output_file
-        
-        with open(output_file, 'w') as f:
-            json.dump(self.blueprint, f, indent=2)
-        
-        print(f"💾 Enhanced blueprint saved to {output_file}")
-        return str(output_file)
-
-def main():
-    """Test the enhanced analyzer"""
-    zip_path = "applicationZips/RequirementsManagementv2.3.0.zip"
+            return "Low"
     
-    if not Path(zip_path).exists():
-        print(f"❌ Zip file not found: {zip_path}")
-        return
+    def _generate_recommendations(self, blueprint: Dict[str, Any]) -> List[str]:
+        """Generate actionable recommendations"""
+        recommendations = []
+        
+        if len(blueprint["record_types"]) > 50:
+            recommendations.append("Consider data model consolidation - high number of record types detected")
+        
+        if len(blueprint["integrations"]) > 10:
+            recommendations.append("Implement integration governance framework for better management")
+        
+        if len(blueprint["security_groups"]) > 100:
+            recommendations.append("Review security group structure for consolidation opportunities")
+        
+        return recommendations
     
-    analyzer = EnhancedAppianAnalyzer(zip_path)
-    blueprint = analyzer.analyze()
-    analyzer.save_blueprint()
-
-if __name__ == "__main__":
-    main()
+    def close(self):
+        """Close the zip file"""
+        self.zip_file.close()
