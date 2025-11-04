@@ -307,9 +307,6 @@ and not the uuids. This new file should have all functionalities and business lo
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
-TO DO NOW
-
 I have created object level xml structure informaiton for each object type and have placed them all in the schemas folder. I want you to 
 go through the contents and update the xml extraction logics of all object types. This would be like a bible to you. You will have 
 all the information that you need here.
@@ -317,3 +314,21 @@ all the information that you need here.
 
 There is also an error:
 Json supplied at /Users/ramaswamy.u/repo/appianAnalyser/.amazonq/cli-agents/appian-blueprint-reader.json is invalid: unknown field `instructions`, expected one of `$schema`, `name`, `description`, `prompt`, `mcpServers`, `tools`, `toolAliases`, `allowedTools`, `resources`, `hooks`, `toolsSettings`, `useLegacyMcpJson`, `model` at line 3 column 16
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+TO DO NOW
+
+We have done some great work. Now I want things to improve further.
+
+1. Process Model
+   * We have identified the interfaces and rules used in the process model during process model analysis.
+   * In addition to this we also need to extract the actual business logics in the nodes.
+   * The business logics in the PM are spread across nodes. I want that to be extracted and placed in a single tag.
+   * All logics in that tag in the process model structure will provide the entire business logic of the PM.
+   * I want all the logics and rules to be captured without even a letter miss and I want that to be stored.
+
+2. Interface
+   * When you start with an interface, all logics in that interface
