@@ -10,9 +10,11 @@ A professional Python tool for analyzing Appian application zip files and genera
 - **📈 Complexity Analysis**: Sophisticated scoring and maintainability assessment
 - **🔍 Deep Insights**: Process automation levels, security patterns, integration analysis
 - **📋 Object Lookup**: Complete UUID-to-name mapping for all objects
+- **🔄 Version Comparison**: Compare two application versions to identify technical changes
 
 ## Quick Start
 
+### Single Application Analysis
 ```bash
 # Analyze an Appian application using module
 python3 -m src.appian_analyzer applicationZips/RequirementsManagementv2.3.0.zip
@@ -24,6 +26,15 @@ appian-analyzer applicationZips/RequirementsManagementv2.3.0.zip
 # This generates in output/ folder:
 # - RequirementsManagementv2.3.0_blueprint.json (detailed technical analysis)
 # - RequirementsManagementv2.3.0_object_lookup.json (UUID-to-name mapping)
+```
+
+### Version Comparison
+```bash
+# Compare two application versions
+python compare_versions.py applicationZips/AM_v1.0.zip applicationZips/AM_v2.0.zip
+
+# This generates:
+# - AM_v1.0_vs_AM_v2.0_comparison.json (detailed change analysis)
 ```
 
 ## Installation
