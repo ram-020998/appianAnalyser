@@ -318,9 +318,6 @@ Json supplied at /Users/ramaswamy.u/repo/appianAnalyser/.amazonq/cli-agents/appi
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
-TO DO NOW
-
 We have done some great work. Now I want things to improve further.
 
 1. Process Model
@@ -330,5 +327,29 @@ We have done some great work. Now I want things to improve further.
    * All logics in that tag in the process model structure will provide the entire business logic of the PM.
    * I want all the logics and rules to be captured without even a letter miss and I want that to be stored.
 
-2. Interface
-   * When you start with an interface, all logics in that interface
+2. Interface & Rules
+   * When you start with an interface or rule, all logics in that interface must be stored in a tag. I am mentioning about the sail code within the definition tag
+
+
+And like this for every object, extract the sail code and store them in a tag.
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+TO DO NOW 
+
+Now We have a solid foundation where we are able to generate a valid blueprint of an entire Appian application.
+
+Moving on to the next use case, I want to use this capability to understand difference between appian packages.
+Here's what I am looking to achieve.
+
+1. Lets say there is an appian application called AM. It was released first and the version is 1.0
+2. Now the AM 1.0 is installed in various customer environments.
+3. Now we release a version 2.0 of the application.
+4. When the customer gets the v 2.0 of the application he needs to know what has been changed technically in the package.
+5. To achieve this, I am thinking of using this functionality of ours. When we run the blueprints of both the version of the application
+and find what has been changed technically in the applicaiton, it will be helpfull for the customer to understand the changes.
+5. So basically I want to generate the blueprints of both versions and compare them.
+
+For the above purpose I want you to create a framework that takes in two applicaiton zips, generates their blueprints and from that identifies
+the changes across two versions. The generated changes should be in a similar JSON structure.
+
+How do you suggest we can implement this?

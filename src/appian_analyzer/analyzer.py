@@ -13,6 +13,7 @@ from .parsers import (
     XMLParser, SiteParser, RecordTypeParser, ProcessModelParser, 
     ContentParser, SimpleObjectParser
 )
+from .sail_formatter import SAILFormatter
 
 class ObjectLookup:
     """Manages object lookup table"""
@@ -131,7 +132,11 @@ class AppianAnalyzer:
         print("🔗 Resolving references...")
         self._resolve_references(blueprint)
         
-        # Step 3: Generate summary
+        # Step 3: Format SAIL code and business logic
+        print("🎨 Formatting SAIL code...")
+        self._format_sail_code(blueprint)
+        
+        # Step 4: Generate summary
         print("📊 Generating summary...")
         blueprint.summary = AnalysisEngine.generate_summary(blueprint, self.object_lookup.count())
         
@@ -258,6 +263,35 @@ class AppianAnalyzer:
             # Resolve process model rules
             for rule in process.rules:
                 rule["name"] = self.object_lookup.resolve_name(rule["uuid"])
+    
+    def _format_sail_code(self, blueprint: Blueprint) -> None:
+        """Format SAIL code for all objects using SAILFormatter"""
+        formatter = SAILFormatter(self.object_lookup.get_all())
+        
+        # Format interfaces
+        for interface in blueprint.interfaces:
+            if interface.sail_code:
+                interface.sail_code = formatter.format_sail_code(interface.sail_code)
+        
+        # Format rules
+        for rule in blueprint.rules:
+            if rule.sail_code:
+                rule.sail_code = formatter.format_sail_code(rule.sail_code)
+        
+        # Format constants
+        for constant in blueprint.constants:
+            if constant.sail_code:
+                constant.sail_code = formatter.format_sail_code(constant.sail_code)
+        
+        # Format process models (special handling for business logic)
+        for process in blueprint.process_models:
+            if process.business_logic:
+                process.business_logic = formatter.format_process_model_logic(process.business_logic)
+        
+        # Format integrations
+        for integration in blueprint.integrations:
+            if integration.sail_code:
+                integration.sail_code = formatter.format_sail_code(integration.sail_code)
     
     def _create_metadata(self) -> Dict[str, Any]:
         """Create analysis metadata"""

@@ -258,9 +258,44 @@ class ProcessModelParser(XMLParser):
         process.flows = self._parse_flows(pm_elem)
         process.interfaces = self._parse_interfaces(pm_elem)
         process.rules = self._parse_rules(pm_elem)
+        process.business_logic = self._extract_complete_business_logic(pm_elem)
         process.security = self._parse_security(root)
         
         return process
+    
+    def _extract_complete_business_logic(self, pm_elem: ET.Element) -> str:
+        """Extract all business logic from process model nodes"""
+        business_logic_parts = []
+        
+        nodes_elem = pm_elem.find('{http://www.appian.com/ae/types/2009}nodes')
+        if nodes_elem is not None:
+            for node in nodes_elem.findall('{http://www.appian.com/ae/types/2009}node'):
+                ac_elem = node.find('{http://www.appian.com/ae/types/2009}ac')
+                if ac_elem is not None:
+                    # Get node name
+                    name_elem = ac_elem.find('{http://www.appian.com/ae/types/2009}name')
+                    node_name = name_elem.text if name_elem is not None and name_elem.text else "Unnamed Node"
+                    
+                    node_logic = f"=== NODE: {node_name} ===\\n"
+                    
+                    # Extract all expressions and logic from AC
+                    for child in ac_elem.iter():
+                        if child.text and child.text.strip():
+                            # Skip simple values and focus on expressions/logic
+                            text = child.text.strip()
+                            if any(keyword in text for keyword in ['rule!', '#"', 'if(', 'and(', 'or(', 'not(', 'local!', 'pv!', 'rv!', 'cons!', 'fn!']):
+                                tag_name = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+                                node_logic += f"{tag_name}: {text}\\n"
+                    
+                    # Extract output expressions
+                    output_elem = ac_elem.find('{http://www.appian.com/ae/types/2009}output-exprs')
+                    if output_elem is not None and output_elem.text and output_elem.text.strip():
+                        node_logic += f"output-exprs: {output_elem.text.strip()}\\n"
+                    
+                    if node_logic != f"=== NODE: {node_name} ===\\n":
+                        business_logic_parts.append(node_logic)
+        
+        return "\\n".join(business_logic_parts) if business_logic_parts else ""
     
     def _parse_string_map(self, elem: ET.Element) -> str:
         """Parse string-map structure to extract localized text"""
@@ -479,7 +514,44 @@ class ContentParser(XMLParser):
                 description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
                 object_type = self._determine_content_type(child.tag)
                 
-                return SimpleObject(uuid=uuid, name=name, object_type=object_type, description=description)
+                # Extract SAIL code from definition tag for interfaces and rules, typedValue for constants
+                sail_code = ""
+                if object_type in ['Interface', 'Expression Rule']:
+                    definition_elem = child.find('definition')
+                    if definition_elem is not None and definition_elem.text:
+                        sail_code = definition_elem.text.strip()
+                elif object_type == 'Constant':
+                    typed_value_elem = child.find('typedValue')
+                    if typed_value_elem is not None:
+                        # Check for direct text content
+                        if typed_value_elem.text and typed_value_elem.text.strip():
+                            sail_code = typed_value_elem.text.strip()
+                        else:
+                            # Check for nested structure
+                            type_elem = typed_value_elem.find('type')
+                            value_elem = typed_value_elem.find('value')
+                            
+                            if type_elem is not None:
+                                type_name = type_elem.find('name')
+                                type_name_text = type_name.text if type_name is not None else ""
+                                
+                                if value_elem is not None:
+                                    # Extract value based on type
+                                    if value_elem.text:
+                                        sail_code = f"Type: {type_name_text}, Value: {value_elem.text}"
+                                    elif value_elem.get('id'):
+                                        sail_code = f"Type: {type_name_text}, ID: {value_elem.get('id')}"
+                                    else:
+                                        sail_code = f"Type: {type_name_text}"
+                
+                obj = SimpleObject(
+                    uuid=uuid, 
+                    name=name, 
+                    object_type=object_type, 
+                    description=description,
+                    sail_code=sail_code
+                )
+                return obj
         
         return None
     
@@ -552,10 +624,16 @@ class SimpleObjectParser(XMLParser):
         desc_elem = cs_elem.find('a:description', self.namespaces)
         description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
         
+        # Extract integration type and configuration
+        integration_type_elem = cs_elem.find('integrationType')
+        integration_type = integration_type_elem.text if integration_type_elem is not None and integration_type_elem.text else ""
+        
+        sail_code = f"Integration Type: {integration_type}" if integration_type else ""
+        
         if not uuid or not name:
             return None
         
-        return SimpleObject(uuid=uuid, name=name, object_type="Connected System", description=description)
+        return SimpleObject(uuid=uuid, name=name, object_type="Connected System", description=description, sail_code=sail_code)
     
     def _parse_web_api(self, root: ET.Element) -> Optional[SimpleObject]:
         api_elem = root.find('webApi')
@@ -567,10 +645,14 @@ class SimpleObjectParser(XMLParser):
         desc_elem = api_elem.find('a:description', self.namespaces)
         description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
         
+        # Extract expression (the main logic)
+        expr_elem = api_elem.find('a:expression', self.namespaces)
+        sail_code = expr_elem.text if expr_elem is not None and expr_elem.text else ""
+        
         if not uuid or not name:
             return None
         
-        return SimpleObject(uuid=uuid, name=name, object_type="Web API", description=description)
+        return SimpleObject(uuid=uuid, name=name, object_type="Web API", description=description, sail_code=sail_code)
     
     def _parse_report(self, root: ET.Element) -> Optional[SimpleObject]:
         report_elem = root.find('tempoReport')
@@ -582,7 +664,11 @@ class SimpleObjectParser(XMLParser):
         desc_elem = report_elem.find('a:description', self.namespaces)
         description = desc_elem.text if desc_elem is not None and desc_elem.text else ""
         
+        # Extract UI expression (the main content)
+        ui_expr_elem = report_elem.find('a:uiExpr', self.namespaces)
+        sail_code = ui_expr_elem.text if ui_expr_elem is not None and ui_expr_elem.text else ""
+        
         if not uuid or not name:
             return None
         
-        return SimpleObject(uuid=uuid, name=name, object_type="Report", description=description)
+        return SimpleObject(uuid=uuid, name=name, object_type="Report", description=description, sail_code=sail_code)

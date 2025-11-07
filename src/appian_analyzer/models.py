@@ -54,6 +54,7 @@ class ProcessModel(AppianObject):
     flows: List[Dict[str, Any]] = None
     interfaces: List[Dict[str, Any]] = None
     rules: List[Dict[str, Any]] = None
+    business_logic: str = ""
     security: Dict[str, Any] = None
     
     def __post_init__(self):
@@ -73,6 +74,7 @@ class ProcessModel(AppianObject):
 @dataclass
 class SimpleObject(AppianObject):
     """Simple object for interfaces, rules, constants, etc."""
+    sail_code: str = ""
     security: Dict[str, Any] = None
     
     def __post_init__(self):
